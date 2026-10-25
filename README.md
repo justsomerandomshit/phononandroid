@@ -19,6 +19,9 @@ Speech is generated on the phone's CPU. The network is only used to download mod
 - **Voice catalog.** Browse the [102 catalog voices](https://huggingface.co/gradium/phonon-voices)
   and download the ones you want (about 250 KB each). Each shows up as an Android voice in its
   own locale (en-US, en-GB, fr-FR, …), so apps and the system settings can pick it by name.
+- **Your own voices.** **Import a voice file** takes any Phonon `.safetensors` voice embedding
+  (such as one ptts's `create_voice` example makes from a recording). The app checks the model can
+  speak with it before keeping it, and it shows up as a voice in every language the model speaks.
 - **Default voice per language**, used when an app asks only for a language.
 - **Speech rate and pitch.** The sliders in the system settings, TalkBack and apps all work.
   Phonon has no rate control the C interface exposes, so the engine time-stretches its output
@@ -34,7 +37,7 @@ Then:
 1. Open **Phonon TTS** and tap **Get** next to Phonon 31m.
 2. Tap **Open text-to-speech settings → Preferred engine → Phonon TTS**.
    Or from a computer: `adb shell settings put secure tts_default_synth dev.kanav.phonon`
-3. Optionally, **Get more voices** and pick your default voice.
+3. Optionally, **Get more voices** or **Import a voice file**, and pick your default voice.
 
 Requirements: Android 8+ on a 64-bit ARM phone with ARMv8.2 (dotprod and fp16, nearly every phone
 since 2019), or an x86_64 emulator. For older ARM phones, build with

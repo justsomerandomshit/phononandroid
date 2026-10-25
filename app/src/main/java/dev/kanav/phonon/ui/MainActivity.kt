@@ -4,11 +4,13 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
 import android.provider.Settings
 import android.speech.tts.TextToSpeech
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -36,6 +38,13 @@ class MainActivity : ComponentActivity() {
 
     lateinit var prefs: Prefs
         private set
+
+    /**
+     * A voice file the user picked, waiting to be named. Kept here rather than in the voices card,
+     * which coming back from the picker recreates.
+     */
+    var pickedVoiceFile by mutableStateOf<Uri?>(null)
+    val pickVoiceFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { pickedVoiceFile = it }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -153,6 +162,24 @@ class MainActivity : ComponentActivity() {
             Voices.download(applicationContext, voices) { report("Downloading voice $it…", null) }
             report("Loading voices…", null)
             Model.await(applicationContext)
+        }
+    }
+
+    /** The file name the document provider gives [uri], for naming an imported voice. */
+    fun displayName(uri: Uri): String? = try {
+        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+            if (it.moveToFirst()) it.getString(0) else null
+        }
+    } catch (e: Exception) {
+        null
+    }
+
+    fun importVoice(uri: Uri, name: String) {
+        tts?.stop()
+        Jobs.run("Importing $name…") { report ->
+            val input = contentResolver.openInputStream(uri) ?: error("cannot read that file")
+            report("Checking $name…", null)
+            Voices.import(applicationContext, input, name)
         }
     }
 

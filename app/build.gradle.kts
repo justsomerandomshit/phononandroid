@@ -19,8 +19,8 @@ android {
         applicationId = "dev.kanav.phonon"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // libptts_ffi.so is only built for these. Without the filter the app would also install on
         // 32-bit phones (JNA ships more ABIs), where Phonon cannot load.

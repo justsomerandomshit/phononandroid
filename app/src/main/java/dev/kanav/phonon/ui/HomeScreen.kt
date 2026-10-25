@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -55,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import dev.kanav.phonon.engine.Catalog
 import dev.kanav.phonon.engine.Model
 import dev.kanav.phonon.engine.Prefs
+import dev.kanav.phonon.engine.Voices
 import java.util.Locale
 
 @Composable
@@ -274,6 +276,28 @@ private fun ModelRow(
 private fun VoicesCard(activity: MainActivity, model: Model.Loaded, onBrowseVoices: () -> Unit) {
     // Bumped to recompose the radio buttons after a pick; the choice itself lives in Prefs.
     var picks by remember { mutableIntStateOf(0) }
+    // Voice files in the checkpoint's voices folder, catalog or imported; only these can be removed.
+    val files = remember(Jobs.revision) { Voices.installedIds(activity) }
+    activity.pickedVoiceFile?.let { uri ->
+        var importName by remember(uri) { mutableStateOf(Voices.sanitize(activity.displayName(uri) ?: "My voice")) }
+        AlertDialog(
+            onDismissRequest = { activity.pickedVoiceFile = null },
+            title = { Text("Name this voice") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Apps and the system settings show it under this name, in every language the model speaks.", style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(value = importName, onValueChange = { importName = it }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    activity.importVoice(uri, importName)
+                    activity.pickedVoiceFile = null
+                }, enabled = importName.isNotBlank()) { Text("Import") }
+            },
+            dismissButton = { TextButton(onClick = { activity.pickedVoiceFile = null }) { Text("Cancel") } },
+        )
+    }
     Section("Voices") {
         Text(
             "The voice apps get when they only ask for a language. Apps and the system settings can also pick any of these voices by name.",
@@ -293,19 +317,32 @@ private fun VoicesCard(activity: MainActivity, model: Model.Loaded, onBrowseVoic
                     Column(Modifier.weight(1f)) {
                         Text(if (voice.speaker == "default" || voice.speaker == null) "Default (built in)" else voice.label)
                         val info = voice.info
-                        val sub = if (info != null) listOfNotNull(info.locale.getDisplayCountry(Locale.ENGLISH).ifEmpty { info.localeTag }, info.gender, info.age).joinToString(" · ") else "Ships with the model"
+                        val sub = when {
+                            info != null -> listOfNotNull(info.locale.getDisplayCountry(Locale.ENGLISH).ifEmpty { info.localeTag }, info.gender, info.age).joinToString(" · ")
+                            voice.speaker in files -> "Imported"
+                            else -> "Ships with the model"
+                        }
                         Text(sub, style = MaterialTheme.typography.bodySmall)
                     }
                     IconButton(onClick = { activity.preview(voice) }) { Icon(Icons.Filled.PlayArrow, "Preview ${voice.label}") }
-                    if (voice.info != null) {
-                        IconButton(onClick = { activity.deleteVoice(voice.speaker!!) }, enabled = !Jobs.busy) {
+                    if (voice.speaker != null && voice.speaker in files) {
+                        IconButton(onClick = { activity.deleteVoice(voice.speaker) }, enabled = !Jobs.busy) {
                             Icon(Icons.Filled.Delete, "Remove ${voice.label}")
                         }
                     }
                 }
             }
         }
-        Button(onClick = onBrowseVoices) { Text("Get more voices") }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onBrowseVoices) { Text("Get more voices") }
+            OutlinedButton(onClick = { activity.pickVoiceFile.launch(arrayOf("*/*")) }, enabled = !Jobs.busy) { Text("Import a voice file") }
+        }
+        // Also shown at the top, which is out of sight from here.
+        Jobs.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        Text(
+            "Import takes a .safetensors voice embedding, like the ones the voice catalog has or ptts's create_voice example makes.",
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 
