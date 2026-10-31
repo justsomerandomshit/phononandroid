@@ -1,6 +1,7 @@
 package dev.kanav.phonon.engine
 
 import android.content.Context
+import android.os.SystemClock
 import android.system.Os
 import android.util.Log
 import androidx.compose.runtime.getValue
@@ -109,24 +110,40 @@ object Model {
             return null
         }
         val app = context.applicationContext
+        // The last load crashed the app: wait for the user to try again rather than crash again.
+        Diagnostics.blockedLoad(app)?.let {
+            state = State.Failed(it)
+            return null
+        }
         val dir = dir(app).path
         val languages = languages(app)
         val threads = Prefs(app).threads
         state = State.Loading
         pending = loader.submit {
+            val started = SystemClock.elapsedRealtime()
+            Diagnostics.loadStarted(app, threads)
             state = try {
                 // Before the first load: the library's thread pool reads it once. One thread per
                 // core is too many on phones that mix fast and slow cores.
                 Os.setenv("RAYON_NUM_THREADS", threads.toString(), true)
                 // Text is normalized per request with setLanguage; this is only the first one.
                 val tts = PhononTTS(dir, languages.firstOrNull() ?: "none")
-                State.Ready(Loaded(tts, tts.voices, languages, Voices.installedMeta(app)))
+                State.Ready(Loaded(tts, tts.voices, languages, Voices.installedMeta(app))).also {
+                    Diagnostics.loadFinished(app, null, SystemClock.elapsedRealtime() - started)
+                }
             } catch (t: Throwable) {
                 Log.e(TAG, "loading $dir failed", t)
+                Diagnostics.loadFinished(app, t.toString(), SystemClock.elapsedRealtime() - started)
                 State.Failed(t.message ?: t.toString())
             }
         }
         return pending
+    }
+
+    /** Load again after a failed or crashed load, on the user's say-so. */
+    fun retry(context: Context) {
+        Diagnostics.unblock(context)
+        load(context)
     }
 
     /** The loaded model, waiting for a load in progress. Null when none could be loaded. */
@@ -151,6 +168,8 @@ object Model {
      * carry over to the new checkpoint.
      */
     fun install(context: Context, specId: String?, fill: (File) -> Unit) {
+        // A new checkpoint deserves a try even if the last one crashed.
+        Diagnostics.unblock(context)
         val staging = File(context.filesDir, "model.staging")
         staging.deleteRecursively()
         staging.mkdirs()

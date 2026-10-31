@@ -120,6 +120,7 @@ class PhononTTS(modelDir: String, lang: String) : AutoCloseable {
     }
 
     private companion object {
-        val lib: Lib = Native.load("ptts_ffi", Lib::class.java)
+        // Not upstream's fixed "ptts_ffi": arm64 ships two builds, see NativeLib.
+        val lib: Lib = Native.load(NativeLib.name, Lib::class.java)
     }
 }

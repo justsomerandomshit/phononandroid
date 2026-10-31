@@ -1,12 +1,15 @@
 package dev.kanav.phonon.ui
 
 import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.speech.tts.TextToSpeech
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -15,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import dev.kanav.phonon.engine.Catalog
+import dev.kanav.phonon.engine.Diagnostics
 import dev.kanav.phonon.engine.Model
 import dev.kanav.phonon.engine.ModelSpec
 import dev.kanav.phonon.engine.Prefs
@@ -88,6 +92,17 @@ class MainActivity : ComponentActivity() {
         } catch (e: ActivityNotFoundException) {
             Jobs.error = "No browser to open $url"
         }
+    }
+
+    fun copyText(text: String) {
+        getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Phonon debug info", text))
+        // Android 13 and later show their own confirmation.
+        if (android.os.Build.VERSION.SDK_INT < 33) Toast.makeText(this, "Copied", Toast.LENGTH_SHORT).show()
+    }
+
+    fun shareText(text: String) {
+        val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
+        startActivity(Intent.createChooser(send, "Share debug info"))
     }
 
     // Speaking through the engine.
@@ -193,6 +208,8 @@ class MainActivity : ComponentActivity() {
 
     /** The native thread pool reads its size once per process, so a change needs a fresh one. */
     fun restartEngine() {
+        // Exiting during a load is not a crash; the next start should load as usual.
+        Diagnostics.forgetPendingLoad(this)
         val intent = packageManager.getLaunchIntentForPackage(packageName)!!
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         startActivity(intent)

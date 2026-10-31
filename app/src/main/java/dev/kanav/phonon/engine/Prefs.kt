@@ -21,6 +21,11 @@ class Prefs(context: Context) {
         get() = sp.getInt("threads", DEFAULT_THREADS)
         set(value) = sp.edit().putInt("threads", value.coerceIn(1, MAX_THREADS)).commit().let { }
 
+    /** Load the ARMv8.0 build of the native library whatever the CPU reports. Applies on the next engine start. */
+    var compatibleCpu: Boolean
+        get() = sp.getBoolean("compatible_cpu", false)
+        set(value) = sp.edit().putBoolean("compatible_cpu", value).commit().let { }
+
     companion object {
         const val DEFAULT_THREADS = 2
         const val MAX_THREADS = 6

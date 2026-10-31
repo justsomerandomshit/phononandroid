@@ -39,9 +39,18 @@ Then:
    Or from a computer: `adb shell settings put secure tts_default_synth dev.kanav.phonon`
 3. Optionally, **Get more voices** or **Import a voice file**, and pick your default voice.
 
-Requirements: Android 8+ on a 64-bit ARM phone with ARMv8.2 (dotprod and fp16, nearly every phone
-since 2019), or an x86_64 emulator. For older ARM phones, build with
-`ARM64_FEATURES= ./scripts/build-native.sh`, which is slower.
+Requirements: Android 8+ on a 64-bit ARM phone, or an x86_64 emulator. Phones with ARMv8.2's dot
+product and half float instructions (nearly every phone since 2019) get the fast build of the
+runtime; older cores, such as the Cortex-A73/A53 in the Snapdragon 680 and 685, get a slower
+ARMv8.0 build. The app reads the CPU's features and picks one by itself.
+
+### If it crashes or will not load
+
+Open **Debug info** (at the bottom of the main screen) and tap **Copy** or **Share**. That gives a
+report to paste into a bug report: the device, its CPU features, which build of the runtime it
+uses, the model files, recent crashes and the app's recent log. If loading the model crashed the
+app, Phonon stops loading it on its own until you tap **Try again**, so the app and the system
+voice keep working. **Compatibility mode** there forces the ARMv8.0 build.
 
 ## Build
 
@@ -51,7 +60,7 @@ You need JDK 17, the Android SDK (platform 36) with an NDK, and Rust.
 git clone --recursive https://github.com/justsomerandomshit/phononandroid
 cd phononandroid
 cargo install cargo-ndk
-./scripts/build-native.sh        # libptts_ffi.so into app/src/main/jniLibs
+./scripts/build-native.sh        # libptts_ffi.so (+ libptts_ffi_v80.so on arm64) into app/src/main/jniLibs
 ./gradlew assembleDebug          # app/build/outputs/apk/debug/phonon-tts-debug.apk
 ./gradlew assembleRelease        # minified; signed with keystore.properties if present, else the debug key
 ```
@@ -83,7 +92,9 @@ Without that property Gradle uninstalls the app afterwards, deleting the downloa
 | `…/engine/Model.kt` | Installing, loading and swapping the checkpoint; Android voices |
 | `…/engine/Voices.kt`, `Catalog.kt` | Model and voice catalogs, downloads |
 | `…/engine/TimeStretch.kt` | Speech rate and pitch |
+| `…/engine/Diagnostics.kt` | Crashed-load detection and the Debug info report |
 | `…/ffi/PhononTTS.kt` | JNA wrapper over `libptts_ffi.so`, vendored from upstream |
+| `…/ffi/NativeLib.kt` | Picks the ARMv8.2 or ARMv8.0 build of the runtime for the CPU |
 | `…/ui/` | The settings app (Jetpack Compose) |
 | `scripts/build-native.sh` | Cross-compiles the Rust runtime for Android |
 

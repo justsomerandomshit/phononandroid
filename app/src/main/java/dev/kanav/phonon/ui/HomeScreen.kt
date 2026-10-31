@@ -61,18 +61,19 @@ import java.util.Locale
 
 @Composable
 fun App(activity: MainActivity) {
-    var showCatalog by rememberSaveable { mutableStateOf(false) }
-    BackHandler(showCatalog) { showCatalog = false }
-    if (showCatalog) {
-        CatalogScreen(activity, onBack = { showCatalog = false })
-    } else {
-        HomeScreen(activity, onBrowseVoices = { showCatalog = true })
+    // "home", "catalog" or "debug".
+    var screen by rememberSaveable { mutableStateOf("home") }
+    BackHandler(screen != "home") { screen = "home" }
+    when (screen) {
+        "catalog" -> CatalogScreen(activity, onBack = { screen = "home" })
+        "debug" -> DebugScreen(activity, onBack = { screen = "home" })
+        else -> HomeScreen(activity, onBrowseVoices = { screen = "catalog" }, onDebug = { screen = "debug" })
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HomeScreen(activity: MainActivity, onBrowseVoices: () -> Unit) {
+private fun HomeScreen(activity: MainActivity, onBrowseVoices: () -> Unit, onDebug: () -> Unit) {
     Scaffold(topBar = { TopAppBar(title = { Text("Phonon TTS") }) }) { padding ->
         // Read so the screen follows tasks ending and the model loading.
         val revision = Jobs.revision
@@ -81,7 +82,7 @@ private fun HomeScreen(activity: MainActivity, onBrowseVoices: () -> Unit) {
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item { StatusCard(state) }
+            item { StatusCard(activity, state, onDebug) }
             item { JobCard() }
             item { DefaultEngineCard(activity) }
             item(key = "model-$revision") { ModelCard(activity) }
@@ -90,7 +91,7 @@ private fun HomeScreen(activity: MainActivity, onBrowseVoices: () -> Unit) {
                 item { TryCard(activity) }
             }
             item { PerformanceCard(activity) }
-            item { AboutCard(activity) }
+            item { AboutCard(activity, onDebug) }
         }
     }
 }
@@ -106,7 +107,7 @@ private fun Section(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun StatusCard(state: Model.State) {
+private fun StatusCard(activity: MainActivity, state: Model.State, onDebug: () -> Unit) {
     val colors = when (state) {
         is Model.State.Ready -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
         is Model.State.Failed -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
@@ -139,6 +140,12 @@ private fun StatusCard(state: Model.State) {
                     },
                     style = MaterialTheme.typography.bodyMedium,
                 )
+                if (state is Model.State.Failed) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { Model.retry(activity) }, enabled = !Jobs.busy) { Text("Try again") }
+                        OutlinedButton(onClick = onDebug) { Text("Debug info") }
+                    }
+                }
             }
         }
     }
@@ -401,7 +408,7 @@ private fun PerformanceCard(activity: MainActivity) {
 }
 
 @Composable
-private fun AboutCard(activity: MainActivity) {
+private fun AboutCard(activity: MainActivity, onDebug: () -> Unit) {
     Section("About") {
         Text(
             "Powered by Phonon from Gradium: open-weight neural text-to-speech that runs entirely on this phone. Phonon 31m is Apache 2.0; the Phonon 40m models are CC BY-NC 4.0 (non-commercial).",
@@ -411,6 +418,8 @@ private fun AboutCard(activity: MainActivity) {
             TextButton(onClick = { activity.openUrl("https://github.com/gradium-ai/xn-ptts") }) { Text("Phonon on GitHub") }
             TextButton(onClick = { activity.openUrl("https://huggingface.co/${Catalog.VOICES_REPO}") }) { Text("Voice catalog") }
         }
+        Text("Crashing or not loading? Debug info has the details to put in a bug report.", style = MaterialTheme.typography.bodySmall)
+        OutlinedButton(onClick = onDebug) { Text("Debug info") }
         Spacer(Modifier.height(4.dp))
     }
 }
